@@ -1,0 +1,623 @@
+<html>
+	<head>
+		<title>Tetris</title>
+		<link rel="icon" href="tetris.png">
+		<style>
+			#board {
+				position:absolute;
+				width: 1900px;
+				height: 860px;
+				background-color: #211b55;
+			}
+			#game{
+				position: absolute;
+				width: 480px;
+				height: 630px;
+				left: 625px;
+				top: 100px;
+				background-color: #0a223d;
+				border: 15px solid #0a54c0;
+			}
+			#setSpeed {
+				color: lightblue;
+				position: absolute;
+				font-size: 30px;
+				top: 40px;
+				width: 480px;
+				left: 665px;
+			}
+			#nextBox{
+				position:absolute;
+				width: 200px;
+				height: 200px;
+				left: 1150px;
+				top: 100px;
+				border-collapse: collapse;
+			}
+			#scoreBox{
+				position:absolute;
+				width: 200px;
+				height: 125px;
+				left: 1150px;
+				top: 635px;
+				border-collapse: collapse;
+			}
+			#customBox{
+				position:absolute;
+				width: 200px;
+				height: 145px;
+				left: 1150px;
+				top: 490px;
+				border-collapse: collapse;
+			}
+			#holdBox{
+				position:absolute;
+				width: 200px;
+				height: 200px;
+				left: 1150px;
+				top: 300px;
+				border-collapse: collapse;
+			}
+			#customize{
+				padding: 5px;	
+				width: 200px;
+				height: 80px;
+				text-align: left;
+				font-size: 25px;
+				color:white;
+				font: impact;
+				background-color: #2940b0;
+			}
+			#speed {
+				position:absolute;
+				width:150px;
+				height:30px;
+				font-size:20px;
+				font: impact;
+				top:70px;
+				left:5px;
+			}
+			#submit {
+				position:absolute; 
+				width:150px;
+				height:25px;
+				top:110px;
+				left:5px;
+				font-size:15px;
+				font: impact;
+			}
+			th{
+				width:100px;
+				height:50px;
+				padding: 5px;
+				text-align: left;  
+				font-size: 25px;
+				color:white;
+				font: impact;
+				background-color: #2786fc;
+			}
+			td {
+				padding: 5px;		
+				text-align: left;
+				font-size: 25px;
+				color:white;
+				font: impact;
+				background-color: #2940b0;   				
+			}
+			#canvas{
+				z-index: -1;
+			}
+		</style>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+		<script src="TetrisBlocks.js"></script>
+		<script>	
+			//GLOBAL VARIABLES
+			var height = 20; //number of rows
+			var width = 15; //number of columns
+			var pause = false;
+			var gameBoard = []; // coordinates
+			var nextShape; //next shape
+			var currentShape; //current shape moving
+			var heldShape; //shape held
+			var swap; //holding shape in process of swapping hold and current
+			var fall; //timer for shape falling
+			var down = 0;
+			var plusOne = true;
+			var score = 0;
+			var menu;
+			var update;
+			var fallSpd = 400;
+			
+			
+			window.onload = function() {
+				menu = new Menu();
+				
+				$('#canvas').appendTo("#menu");
+				var canvas = document.getElementById("canvas");
+				var ctx = canvas.getContext("2d");
+				var W = 1900; //width
+				var H = 860; //height
+				var totalSnow = 100;
+				var fallingSnow = [];
+				var speedUp;
+				
+				for(var i = 0; i < totalSnow; i++){
+					fallingSnow.push({
+						x: Math.random()*W,
+						y: Math.random()*H,
+						r: Math.random()*8+4,
+						d: Math.random() + 0.75
+					})
+				}
+				/** drawSnow() draws snow onto the screen**/
+				function drawSnow(){
+					ctx.clearRect(0, 0, W, H);
+					ctx.fillStyle = "white";
+					ctx.beginPath();
+					for(var i = 0; i < totalSnow; i++){
+						var snow = fallingSnow[i];
+						ctx.moveTo(snow.x, snow.y);
+						ctx.arc(snow.x, snow.y, snow.r, 0, Math.PI*2, true);
+					}
+					ctx.fill();
+					snowFall();
+				}
+				/** snowFall() changes the position of the snow continuously**/
+				function snowFall(){
+					for(var i = 0; i < totalSnow; i++){
+						var snow = fallingSnow[i];
+						snow.y += Math.pow(snow.d, 2) + 1;
+						if(snow.y > H){
+							fallingSnow[i] = {x: Math.random()*W, y: 0, r: snow.r, d: snow.d};
+						}
+					}
+				}
+				setInterval(drawSnow, 25);
+			}		
+			
+			
+			
+			/** playGame() starts the game when the button is clicked on --> creates the board, generates shape, draws shape, and starts dropping the shape by 1**/
+			function playGame() {
+				$('#canvas').appendTo("#board");
+				createBoard();
+				generateNewShape();
+				drawShape();
+				speedUp = setInterval(function(){ customSet(document.getElementById('setSpeed')) },5000);
+				startGame();
+			}
+			
+			/** createBoard() creates new divs as the tetris grid, pushes divs into an array of rows, and pushes the array of rows into an array (gameBoard)
+				Call 2,10 --- gameBoard[10][2]**/
+			function createBoard() {
+			
+				var board = document.getElementById('board')
+				for (var row = 0 ; row <= height ; row++ ) {
+					var cRow=[];
+						
+					for (var col = 0; col <= width; col++) {
+						var cS = new Square(col, row);
+						cRow.push(cS);
+					}
+					gameBoard.push(cRow);
+				}
+			}
+			
+			/** generateNewShape() chooses a random number for a random Shape object
+				--> sets nextShape as a certain shape
+				--> if current shape is undefined, currentShape = nextShape
+			**/
+			function generateNewShape() {
+				clearRow();
+				var randomShape = parseInt(Math.random()*7);
+				var newShape;
+				
+				if (randomShape == 0) {
+					newShape = new BlockShape();
+				} else if (randomShape == 1) {
+					newShape = new LineShape();
+				} else if (randomShape == 2) {
+					newShape = new LShape();
+				} else if (randomShape == 3) {
+					newShape = new ZShape();
+				} else if (randomShape == 4) {
+					newShape = new RLShape();
+				} else if (randomShape == 5) {
+					newShape = new SShape();
+				} else if (randomShape == 6) {
+					newShape = new HillShape();
+				}
+				nextShape = newShape;
+				nextShape.drawShape("#next");
+				if(currentShape == undefined){
+					currentShape = nextShape;
+					generateNewShape();
+				}
+				checkStatus();
+			}
+			
+			/** startGame() sets an interval for how fast the shape falls**/
+			function startGame() {
+				if (pause == false) {
+					clearInterval(fall);
+					fall = setInterval(function(){ autoMove('down') },fallSpd);
+				} else if (pause == true) {
+					clearInterval(fall);
+				
+				}
+			}
+		
+		/** clearRow() clears the row (sets background color to board color) if all the block types of the row are not -1**/
+			function clearRow() {
+				var test = 0 ;
+				for ( var r = 0 ; r < gameBoard.length ; r ++ ) {
+					test = 0;
+					for ( var c = 0 ; c < gameBoard[r].length ; c++ ) {
+						if ( gameBoard[r][c].blockType != -1 ) {
+							test++;
+						}
+						if (test == width + 1) {
+							for ( var w = 0 ; w <= width ; w++ ) {
+								gameBoard[r][w].div.css({"backgroundColor":"#0a223d"});
+								gameBoard[r][w].blockType = -1;
+								score+=100;
+							}
+							clearMoveRow(r);
+							document.getElementById('score').innerHTML = score/16;	
+						}
+					}	
+				}
+			}
+			
+
+			/** clearMoveRow() moves all dead shapes down once the row below is cleared
+				input: r - row number**/
+			function clearMoveRow(r) {
+				var color = "";
+				for ( var i = r ; i > 0 ; i--) {
+					color = "";
+					for (var c = 0 ; c <= width ; c++) {
+				
+					
+						if(gameBoard[i-1][c].div[0].style.backgroundColor) {
+							color = gameBoard[i-1][c].div.css(["backgroundColor"]);
+							gameBoard[i][c].div.css({"backgroundColor":color.backgroundColor});
+							gameBoard[i][c].blockType = gameBoard[i-1][c].blockType;
+						} else {
+							color = "#0a223d";
+							gameBoard[i][c].blockType = -1;
+							gameBoard[i][c].div.css({"backgroundColor":color});
+						}
+					
+					}
+				}
+			}
+			
+			/** changeScore() updates the score when a row is cleared**/
+			function changeScore(target) {
+				clearInterval(update);
+				target.innerHTML = ("Your current speed is 1 drop / "+fallSpd/1000+" sec")
+				target.style.color = "lightblue";
+			}
+			
+			/** drawShape() calls randomizeShape() for currentShape to be a random shape and draws the shape onto the game board**/
+			function drawShape(){
+				showShadow();
+				for(var p = 0; p < currentShape.positions.length ; p++){//p = piece
+					gameBoard[ currentShape.positions[p][1] + currentShape.y][ currentShape.positions[p][0] + currentShape.x].div
+						.css({"backgroundColor":currentShape.backgroundColor});
+					
+				}
+			
+			}
+			
+			/** eraseShape() calls randomizeShape() for currentShape to be a random shape and draws the shape onto the game board**/
+			function eraseShape(){
+				//currentShape = randomizeShape();
+				for(var p = 0; p < currentShape.positions.length ; p++){//p = piece
+					gameBoard[ currentShape.positions[p][1] + currentShape.y][ currentShape.positions[p][0] + currentShape.x].div
+						.css({"backgroundColor":"#0a223d"});
+				}
+			
+			}
+			
+			/** checkDirection() returns a string indicating direction
+				input: e - event 
+				output: "left", "right", "space", "rotate", "pause", "hold"
+				Example: press right key --- returns "right"**/
+			function checkDirection(e) {
+				var direction;
+				if (e.keyCode == "37") {
+					direction = "left";
+				} else if (e.keyCode == "39") {
+					direction = "right";
+				} else if (e.keyCode == "32") {
+					direction = "space";
+				} else if (e.keyCode == "38") {
+					direction = "rotate";
+				} else if (e.keyCode == "80") {
+					direction = "pause";
+				} else if (e.keyCode == "16") {
+					direction = "hold";
+				}
+				
+				if([32, 37, 38, 39, 40, 80].indexOf(e.keyCode) > -1) {
+					e.preventDefault();
+				}
+				return direction;
+			}
+			
+			/** autoMove() moves the shape down by one
+				input: dir - direction ("down") **/
+			function autoMove(dir) {
+				var direction = dir;
+					
+				for(var p=0; p<currentShape.positions.length; p++)  {
+					if(currentShape.positions[p][1]+currentShape.y>=height || gameBoard[ currentShape.positions[p][1]+1+currentShape.y ][currentShape.positions[p][0]+currentShape.x ].blockType != -1){
+						for (var d = 0 ; d < currentShape.positions.length ; d++) {
+							gameBoard[ currentShape.positions[d][1] + currentShape.y][ currentShape.positions[d][0] + currentShape.x].blockType = currentShape.blockType;
+						}
+						currentShape = nextShape;
+						generateNewShape();
+						plusOne = false;
+					}
+					
+				}
+				
+				eraseShape();
+				if (plusOne == true) {
+					if(direction == "down"){
+							currentShape.y+=1;
+					}
+				}
+				
+				plusOne = true;
+				drawShape();
+			
+			}	
+			
+			/** moveShape() moves the shape when a key is pressed
+				input: dir - direction from key press
+				"left" --> move shape to the left
+				"right" --> move shape to the right
+				"space" --> drop shape
+				"rotate" --> rotate shape**/		
+			function moveShape(dir){
+				var direction = dir;
+				if ( pause == false ) {
+					var checkLeft = 0;
+					var checkRight = 0;
+					eraseShape();
+					if(direction == "left"){
+						for(var p=0; p<currentShape.positions.length; p++)  {
+							if( currentShape.positions[p][0]+currentShape.x == 0 || 
+							gameBoard[ currentShape.positions[p][1]+currentShape.y ][currentShape.positions[p][0] - 1 +currentShape.x].blockType != -1) {
+								checkLeft++;
+							}
+						}
+						
+							if (checkLeft <= 0 ){
+								currentShape.x--;
+								showShadow();
+							} 
+						
+					}else if(direction == "right"){
+						for(var r=currentShape.positions.length-1; r>-1; r--)  {
+							if( currentShape.positions[r][0]+currentShape.x >= width || 
+							gameBoard[ currentShape.positions[r][1]+currentShape.y ][currentShape.positions[r][0] + 1+currentShape.x].blockType != -1){
+								checkRight++;
+							}
+						}
+						
+							if(checkRight <= 0){
+								currentShape.x++;
+								showShadow();
+							}
+					} else if( direction == "space") {
+						shootDown();
+					} else if( direction == "rotate"){
+					
+						for(var p=0; p<currentShape.positions.length; p++)  {
+							if( currentShape.positions[p][0]+currentShape.x == 0 || 
+							gameBoard[ currentShape.positions[p][1]+currentShape.y ][currentShape.positions[p][0] - 1 +currentShape.x].blockType != -1) {
+								checkLeft++;
+							}
+						}
+
+						for(var r=currentShape.positions.length-1; r>-1; r--)  {
+							if( currentShape.positions[r][0]+currentShape.x >= width || 
+							gameBoard[ currentShape.positions[r][1]+currentShape.y ][currentShape.positions[r][0] + 1+currentShape.x].blockType != -1){
+								checkLeft++;
+							}
+						}
+
+						if (checkLeft <= 1 ){
+							currentShape.rotate();
+						}
+					} else if( direction == "hold"){
+						if(heldShape == undefined){
+							heldShape = currentShape;
+							heldShape.x = 7;
+							heldShape.y =1;
+							heldShape.drawShape("#hold");
+							currentShape = nextShape;
+							generateNewShape();
+						}else {
+							swap = currentShape;
+							currentShape = heldShape;
+							heldShape = swap;
+							heldShape.x = 7;
+							heldShape.y =1;
+							heldShape.drawShape("#hold");
+							
+						}
+					
+						
+					}
+				}
+				if(direction == "pause") {
+					changeStatus();	
+				}
+				drawShape();
+			}
+			
+			/** checkStatus() stops the current shape from falling and sets pause as true**/
+			function checkStatus() {
+				for( var c = 0 ; c < currentShape.positions.length ; c++ ) {
+					if (gameBoard[currentShape.positions[c][1] + currentShape.y][currentShape.positions[c][0] + currentShape.x].blockType != -1) {
+						$('#replay').fadeIn("slow");
+						clearInterval(fall);
+						pause = true;
+						for ( var r = 0 ; r < gameBoard.length ; r ++ ) {
+							for (var c = 0 ; c < gameBoard[r].length ; c++) {
+								gameBoard[r][c].div.css({"backgroundColor":"#0a223d"});
+								gameBoard[r][c].blockType = -1;
+							}
+						}
+						
+					}
+				}
+			
+			}
+			
+			/** changeStatus() sets pause to either true of false**/
+			function changeStatus() {
+				if (pause == false) {
+					pause = true
+					menu.pause[0].style.display = "block";
+					startGame();
+					console.log('here1');
+				} else if ( pause == true) {
+					console.log('here2');
+					pause = false;
+					menu.pause[0].style.display = "none";
+					startGame();
+				}
+			
+			}
+			
+			/** showShadow() shows the theoretical position of the current shape**/
+			function showShadow() {
+				var values = [];
+				var down = 0;
+				
+				for (var i = 0 ; i < currentShape.positions.length ; i++) {
+					down = 0;
+					for (var k = 1 ; k <= height - (currentShape.positions[i][1] + currentShape.y) ; k++) {
+						if(gameBoard[currentShape.positions[i][1] + currentShape.y + k][currentShape.positions[i][0]+currentShape.x].blockType != -1) {
+							break;
+						} 
+						if ( gameBoard[currentShape.positions[i][1] + currentShape.y + k][currentShape.positions[i][0]+currentShape.x].blockType == -1 && currentShape.positions[i][1]+ currentShape.y+k <= height) {
+							down++;
+						}
+					}
+					values.push(down);
+				}
+				var current = values[0];
+				for( var num = 0 ; num < values.length ; num++ ) {
+					if( values[num] < current ) {
+						current = values[num];
+					}
+				}
+				for ( var r = 0 ; r < gameBoard.length ; r ++ ) {
+					for ( var c = 0 ; c < gameBoard[r].length ; c++ ) {
+						if(gameBoard[r][c].div.css(["backgroundColor"]).backgroundColor == 'rgb(128, 128, 128)'){
+							gameBoard[r][c].div.css({'backgroundColor':"#0a223d"});
+						}
+					}	
+				}
+				for(var p = 0; p < currentShape.positions.length ; p++){//p = piece
+					gameBoard[ currentShape.positions[p][1] + currentShape.y + current][ currentShape.positions[p][0] + currentShape.x].div
+						.css({"backgroundColor":"grey"});
+					
+				}
+				
+			}
+			
+			/** shootDown() drops the block to its theoretical position**/
+			function shootDown(){
+				var values = [];
+				var down = 0;
+				for (var i = 0 ; i < currentShape.positions.length ; i++) {
+					down = 0;
+					for (var k = 1 ; k <= height - (currentShape.positions[i][1] + currentShape.y) ; k++) {
+						if(gameBoard[currentShape.positions[i][1] + currentShape.y + k][currentShape.positions[i][0]+currentShape.x].blockType != -1) {
+							break;
+						} 
+						if ( gameBoard[currentShape.positions[i][1] + currentShape.y + k][currentShape.positions[i][0]+currentShape.x].blockType == -1 && currentShape.positions[i][1]+ currentShape.y+k <= height) {
+							down++;
+						}
+					}
+					values.push(down);
+				}
+				console.log(values);
+				var current = values[0];
+				for( var num = 0 ; num < values.length ; num++ ) {
+					if( values[num] < current ) {
+						current = values[num];
+					}
+				}
+				currentShape.y = currentShape.y + current;
+				
+			}
+			
+			/** customSet updates the speed of the block**/
+			function customSet(target,speed) {
+				fallSpd = fallSpd - 50
+				clearInterval(fall);
+				startGame();
+				target.style.color = "lightgreen";
+				target.innerHTML = "Your speed has been set to " +fallSpd+ " ms."
+				
+				update = setInterval(function(){ changeScore(document.getElementById('setSpeed')) },2000);
+			}
+		
+
+		</script>
+	</head>
+	<body onkeydown="moveShape(checkDirection(event))">
+		<div id="board"> 
+			<div id="game"></div>
+			<table id="nextBox">
+				<tr>
+					<th>Next</th>
+				</tr>
+				<tr>
+					<td id="next"></td>
+				</tr>
+			</table>
+			<table id="holdBox">
+				<tr>
+					<th>Hold</th>
+				</tr>
+				<tr>
+					<td id="hold"></td>
+				</tr>
+			</table>
+			<table id="scoreBox">
+				<tr>
+					<th>Score</th>
+				</tr>
+				<tr>
+					<td id="score">0</td>
+				</tr>
+			</table>
+			<table id="customBox">
+				<tr>
+					<th>Custom Speed</th>
+				</tr>
+				<tr>
+					<td id="customize">
+						<input type="text" id="speed" value="400"></input>
+						<input type="button" id="submit" value="Save Changes" onclick="customSet(document.getElementById('setSpeed'),document.getElementById('speed'))"> </input>
+					</td>
+				</tr>
+			</table>
+			<div id="setSpeed">Your current speed is 1 drop / 0.4 sec</div>
+			<canvas id="canvas" width="1900" height="860"></canvas>
+		</div>
+		<audio autoplay loop>
+			<source id="theme" src="theme.mp3" type="audio/mpeg">
+		</audio>
+	</body>
+</html>
