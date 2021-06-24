@@ -1,4 +1,4 @@
-# tetrisjavascript
+# tetris-javascript
 Authors: Jackie G, Andy L, Miranda L
 
 Game Summary: Basic Tetris where you would connect rows with different shapes to score points. Some features we have added were: 
